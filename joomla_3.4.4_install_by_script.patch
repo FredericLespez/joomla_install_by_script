@@ -1,0 +1,247 @@
+diff -x '*~' -Naur a/installation/application/web.php b/installation/application/web.php
+--- a/installation/application/web.php	2015-09-09 12:30:08.000000000 +0200
++++ b/installation/application/web.php	2015-10-03 17:28:29.070552668 +0200
+@@ -11,6 +11,8 @@
+ 
+ use Joomla\Registry\Registry;
+ 
++class InstallException extends Exception { }
++
+ /**
+  * Joomla! Installation Application class.
+  *
+@@ -157,8 +159,7 @@
+ 			// Execute the task.
+ 			try
+ 			{
+-				$controller = $this->fetchController($this->input->getCmd('task'));
+-				$contents   = $controller->execute();
++				$contents = $this->installCli();
+ 			}
+ 			catch (RuntimeException $e)
+ 			{
+@@ -185,6 +186,117 @@
+ 	}
+ 
+ 	/**
++	 * Method to run a fake controller for a cli install.
++	 *
++	 * @return  string  The rendered view.
++	 *
++	 * @since   Not official :-)
++	 */
++	protected function installCli()
++	{
++        try {
++            $contents = '<h3>Installation</h3>'. PHP_EOL . '<ul>' . PHP_EOL;
++
++            $model        = new InstallationModelSetup;
++            $sufficient   = $model->getPhpOptionsSufficient();
++            $options      = $model->getOptions();
++
++            $contents .= '<li>Load custom options file...';
++            $custom_options_file = JPATH_INSTALLATION . '/custom_options.json';
++            if (file_exists($custom_options_file))
++                {
++                    $contents .= 'Done</li>' . PHP_EOL;
++                }
++            else
++                {
++                    $contents .= 'An error occured</li>' . PHP_EOL;
++                    throw new InstallException('ERROR: Preseed file ' . $custom_options_file . ' not found');
++                }
++
++            $custom_options_json = file_get_contents($custom_options_file);
++            $custom_options      = json_decode($custom_options_json, true);
++            $options             = array_merge($options, $custom_options);
++
++            $options = $model->storeOptions($options);
++
++            // Get the database model.
++            $db = new InstallationModelDatabase;
++
++            // Attempt to create the database.
++            $contents .= '<li>Create database... ';
++            $return = $db->createDatabase($options);
++            if ($return)
++                {
++                    $contents .= 'Done</li>' . PHP_EOL;
++                }
++            else
++                {
++                    $contents .= 'An error occured</li>' . PHP_EOL;
++                    throw new InstallException('ERROR: Unable to create database');
++                }
++
++            // Reload options (they can be modified by InstallationModel* classes)
++            $options = $model->getOptions();
++
++            // Attempt to handle old the database.
++            $contents .= '<li>Handle old database... ';
++            $return = $db->handleOldDatabase($options);
++            if ($return)
++                {
++                    $contents .= 'Done</li>' . PHP_EOL;
++                }
++            else
++                {
++                    $contents .= 'An error occured</li>' . PHP_EOL;
++                    throw new InstallException('ERROR: Unable to handle old database');
++                }
++
++            // Reload options (they can be modified by InstallationModel* classes)
++            $options = $model->getOptions();
++
++            // Attempt to create the database tables.
++            $contents .= '<li>Create database tables... ';
++            $return = $db->createTables($options);
++            if ($return)
++                {
++                    $contents .= 'Done</li>' . PHP_EOL;
++                }
++            else
++                {
++                    $contents .= 'An error occured</li>' . PHP_EOL;
++                    throw new InstallException('ERROR: Unable to create database tables');
++                }
++
++            // Reload options (they can be modified by InstallationModel* classes)
++            $options = $model->getOptions();
++
++            // Get the database model.
++            $configuration = new InstallationModelConfiguration;
++
++            // Attempt to setup the configuration.
++            $contents .= '<li>Setup configuration file... ';
++            $return = $configuration->setup($options);
++            if ($return)
++                {
++                    $contents .= 'Done</li>' . PHP_EOL;
++                }
++            else
++                {
++                    $contents .= 'An error occured</li>' . PHP_EOL;
++                    throw new InstallException('ERROR: Unable to setup configuration file');
++                }
++
++            $contents .= '</ul>'. PHP_EOL . '<h3>Installation complete</h3>'. PHP_EOL;
++        }
++        catch (InstallException $e)
++			{
++                $contents .= '</ul>'. PHP_EOL . '<h3>Installation aborted</h3>'. PHP_EOL;
++                $this->enqueueMessage($e->getMessage(), 'error');
++			}
++        return $contents;
++	}
++
++	/**
+ 	 * Method to run the Web application routines.
+ 	 *
+ 	 * @return  void
+diff -x '*~' -Naur a/installation/template/index.php b/installation/template/index.php
+--- a/installation/template/index.php	2015-09-09 12:30:08.000000000 +0200
++++ b/installation/template/index.php	2015-09-26 14:58:42.786182235 +0200
+@@ -13,35 +13,11 @@
+ // Add Stylesheets
+ JHtml::_('bootstrap.loadCss', true, $this->direction);
+ JHtml::_('stylesheet', 'installation/template/css/template.css');
+-
+-// Load the JavaScript behaviors
+-JHtml::_('bootstrap.framework');
+-JHtml::_('formbehavior.chosen', 'select');
+-JHtml::_('behavior.framework', true);
+-JHtml::_('behavior.keepalive');
+-JHtml::_('behavior.formvalidator');
+-JHtml::_('script', 'installation/template/js/installation.js');
+-
+-// Load the JavaScript translated messages
+-JText::script('INSTL_PROCESS_BUSY');
+-JText::script('INSTL_FTP_SETTINGS_CORRECT');
+ ?>
+ <!DOCTYPE html>
+ <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="<?php echo $this->language; ?>" lang="<?php echo $this->language; ?>" dir="<?php echo $this->direction; ?>">
+ 	<head>
+ 		<jdoc:include type="head" />
+-		<!--[if lt IE 9]>
+-			<script src="../media/jui/js/html5.js"></script>
+-		<![endif]-->
+-		<script type="text/javascript">
+-			jQuery(function()
+-			{	// Delay instantiation after document.formvalidation and other dependencies loaded
+-				window.setTimeout(function(){
+-					window.Install = new Installation('container-installation', '<?php echo JUri::current(); ?>');
+-			   	}, 500);
+-
+-			});
+-		</script>
+ 	</head>
+ 	<body>
+ 		<!-- Header -->
+@@ -67,67 +43,10 @@
+ 		<!-- Container -->
+ 		<div class="container">
+ 			<jdoc:include type="message" />
+-			<div id="javascript-warning">
+-				<noscript>
+-					<div class="alert alert-error">
+-						<?php echo JText::_('INSTL_WARNJAVASCRIPT'); ?>
+-					</div>
+-				</noscript>
+-			</div>
+ 			<div id="container-installation">
+ 				<jdoc:include type="component" />
+ 			</div>
+ 			<hr />
+ 		</div>
+-		<script>
+-			function initElements()
+-			{
+-				(function($){
+-					$('.hasTooltip').tooltip()
+-
+-					// Chosen select boxes
+-					$("select").chosen({
+-						disable_search_threshold : 10,
+-						allow_single_deselect : true
+-					});
+-
+-					// Turn radios into btn-group
+-				    $('.radio.btn-group label').addClass('btn');
+-				    $(".btn-group label:not(.active)").click(function()
+-					{
+-				        var label = $(this);
+-				        var input = $('#' + label.attr('for'));
+-
+-				        if (!input.prop('checked'))
+-						{
+-				            label.closest('.btn-group').find("label").removeClass('active btn-success btn-danger btn-primary');
+-				            if(input.val()== '')
+-							{
+-				                    label.addClass('active btn-primary');
+-				             } else if(input.val()==0 || input.val()=='remove')
+-							{
+-				                    label.addClass('active btn-danger');
+-				             } else {
+-				            label.addClass('active btn-success');
+-				             }
+-				            input.prop('checked', true);
+-				        }
+-				    });
+-				    $(".btn-group input[checked=checked]").each(function()
+-					{
+-						if ($(this).val()== '')
+-						{
+-				           $("label[for=" + $(this).attr('id') + "]").addClass('active btn-primary');
+-				        } else if($(this).val()==0 || $(this).val()=='remove')
+-						{
+-				           $("label[for=" + $(this).attr('id') + "]").addClass('active btn-danger');
+-				        } else {
+-				            $("label[for=" + $(this).attr('id') + "]").addClass('active btn-success');
+-				        }
+-				    });
+-				})(jQuery);
+-			}
+-			initElements();
+-		</script>
+ 	</body>
+ </html>
