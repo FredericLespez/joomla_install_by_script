@@ -16,7 +16,7 @@ Let's say you have already created your database and your web site.
 
 Let's say that, on the web server, the content of your site is located here : /var/www/my-joomla-site
 
-Finally, let's that your have downloaded Joomla 3.4.4 and unpacked the installation package at the root of your site (/var/www/my-joomla-site)
+Finally, let's say that you have downloaded Joomla 3.4.4 (or 3.4.5) and unpacked the installation package at the root of your site (/var/www/my-joomla-site)
 
 Now Here we go:
 
@@ -71,5 +71,5 @@ Joomla is now installed :-)
 
 # Limitations
 
-This patch has been made for Joomla 3.4.4 but it should work with all Joomla 3.X version.
+This patch has been made for Joomla 3.4.4/3.4.5 but it should work with all Joomla 3.X version.
 Feel free to report your success or failure.
