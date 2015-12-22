@@ -16,7 +16,7 @@ Let's say you have already created your database and your web site.
 
 Let's say that, on the web server, the content of your site is located here : /var/www/my-joomla-site
 
-Finally, let's say that you have downloaded Joomla 3.4.4 (or 3.4.5) and unpacked the installation package at the root of your site (/var/www/my-joomla-site)
+Finally, let's say that you have downloaded Joomla 3.4.X and unpacked the installation package at the root of your site (/var/www/my-joomla-site)
 
 Now Here we go:
 
@@ -24,7 +24,8 @@ Now Here we go:
 
 2/ On the web server, you can now run the following commands
 ~~~
-patch -p1 < joomla_3.4.4_install_by_script.patch
+cd '/var/www/my-joomla-site'
+patch -p1 < joomla_3.4.X_install_by_script.patch
 cat > '/var/www/my-joomla-site/installation/custom_options.json' <<EOF
 {
   "site_name":               "My Joomla Site",
@@ -71,5 +72,5 @@ Joomla is now installed :-)
 
 # Limitations
 
-This patch has been made for Joomla 3.4.4/3.4.5 but it should work with all Joomla 3.X version.
+This patch has been tested with for Joomla 3.4.4, 3.4.5, 3.4.6 and 3.4.7 but it should work with all Joomla 3.X version.
 Feel free to report your success or failure.
